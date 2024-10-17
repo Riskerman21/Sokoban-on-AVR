@@ -1,93 +1,75 @@
-/*
- * timer0.c
- *
- * Author: Peter Sutton
- */
-
 #include "timer0.h"
 #include "game.h"
 #include <stdint.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-// Our internal clock tick count - incremented every millisecond. Will
-// overflow every ~49 days.
 static volatile uint32_t clock_ticks_ms;
 int digit;
 uint8_t value;
 uint32_t time = 0;
 uint8_t seven_seg[10] = { 63, 6, 91, 79, 102, 109, 125, 7, 127, 111 };
 
+#define DIGIT_PIN PD3
+
 void display_digit(uint8_t number, uint8_t digit) 
 {
-	PORTC = digit;
-	PORTA = seven_seg[number];
+    PORTD &= ~(1 << DIGIT_PIN); // Deactivate both digits
+    PORTC = seven_seg[number];  // Update segmentsf
+
+    // Activate the correct digit
+    if (digit == 0) {
+        PORTD &= ~(1 << DIGIT_PIN);  // Activate digit 0
+    } else {
+        PORTD |= (1 << DIGIT_PIN);   // Activate digit 1
+    }
 }
 
-void seven_seg_update(void){
-	if(digit == 0) {
-		value = get_steps() % 10;
-	} else {
-		value = (get_steps() / 10) % 10;
-	}
-	display_digit(value, digit);
-	digit = 1 - digit;
+void seven_seg_update(void) {
+    if (digit == 0) {
+        value = get_steps() % 10;
+    } else {
+        value = (get_steps() / 10) % 10;
+    }
+    display_digit(value, digit);
+    digit = 1 - digit;
 }
-
 
 void init_timer0(void)
 {
-	// Reset clock tick count. L indicates a long (32 bit) constant.
-	clock_ticks_ms = 0L;
+    DDRD |= (1 << DIGIT_PIN);  // Set Pin D2 as output for digit switching
+    clock_ticks_ms = 0L;       // Reset clock tick count
 
-	// Set up timer 0 to generate an interrupt every 1ms. We will divide
-	// the clock by 64 and count up to 124. We will therefore get an
-	// interrupt every 64 x 125 clock cycles, i.e. every 1 milliseconds
-	// with an 8MHz clock. The counter will be reset to 0 when it reaches
-	// it's output compare value.
+    // Set up timer 0 to generate an interrupt every 1ms
+    TCNT0 = 0;                 // Clear the timer
+    OCR0A = 124;               // Output compare value for 1ms
 
-	// Clear the timer.
-	TCNT0 = 0;
+    // Set the timer to clear on compare match (CTC mode) and divide the clock by 64
+    TCCR0A = (1 << WGM01);
+    TCCR0B = (1 << CS01) | (1 << CS00);
 
-	// Set the output compare value to be 124.
-	OCR0A = 124;
-
-	// Set the timer to clear on compare match (CTC mode) and to
-	// divide the clock by 64. This starts the timer running.
-	TCCR0A = (1 << WGM01);
-	TCCR0B = (1 << CS01) | (1 << CS00);
-
-	// Enable an interrupt on output compare match. Note that
-	// interrupts have to be enabled globally before the interrupts
-	// will fire.
-	TIMSK0 |= (1 << OCIE0A);
-
-	// Make sure the interrupt flag is cleared by writing a 1 to it.
-	TIFR0 = (1 << OCF0A);
+    // Enable an interrupt on output compare match
+    TIMSK0 |= (1 << OCIE0A);
+    TIFR0 = (1 << OCF0A);      // Clear the interrupt flag
 }
 
 uint32_t get_current_time(void)
 {
-	// Disable interrupts so we can be sure that the interrupt doesn't
-	// fire when we've copied just a couple of bytes of the value.
-	// Interrupts are re-enabled if they were enabled at the start.
-	uint8_t interrupts_were_enabled = bit_is_set(SREG, SREG_I);
-	cli();
-	uint32_t result = clock_ticks_ms;
-	if (interrupts_were_enabled)
-	{
-		sei();
-	}
-	return result;
+    uint8_t interrupts_were_enabled = bit_is_set(SREG, SREG_I);
+    cli();
+    uint32_t result = clock_ticks_ms;
+    if (interrupts_were_enabled) {
+        sei();
+    }
+    return result;
 }
 
-// Interrupt handler for clock tick.
 ISR(TIMER0_COMPA_vect)
 {
-	// Increment our clock tick count.
-	clock_ticks_ms++;
-	seven_seg_update();
-
+    clock_ticks_ms++;
 	
+    if (clock_ticks_ms >= time + 5) {  // Update every 5ms for better brightness
+        seven_seg_update();
+        time = clock_ticks_ms;
+    }
 }
-

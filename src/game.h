@@ -15,17 +15,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define MAX_UNDO 6
-
-uint8_t player_row_history[MAX_UNDO];
-uint8_t player_col_history[MAX_UNDO];
-bool box_moved_history[MAX_UNDO];
-uint8_t box_row_history[MAX_UNDO];
-uint8_t box_col_history[MAX_UNDO];
-
-uint8_t undo_capacity = 0;
-uint8_t move_index = 0;
-
 // Object definitions.
 #define ROOM       	(0U << 0)
 #define WALL       	(1U << 0)
@@ -49,7 +38,7 @@ bool on_top_of_target_flag;
 uint8_t sound;
 
 bool animation_running;
-int16_t animation_ticks;
+int32_t animation_ticks;
 uint8_t target_row, target_col;
 uint8_t target_color_state;
 

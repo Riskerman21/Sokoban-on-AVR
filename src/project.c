@@ -42,17 +42,41 @@ void handle_game_over(void);
 
 
 /////////////////////////////// main //////////////////////////////////
+#define JOYSTICK_CENTER_LOW 450  
+#define JOYSTICK_CENTER_HIGH 600 
+
+#define JOYSTICK_THRESHOLD_NEGATIVE 100  
+#define JOYSTICK_THRESHOLD_POSITIVE 950  
+#define JOYSTICK_THRESHOLD_diagonal 800
+
+void move_player_by_joystick(uint64_t x_value, uint64_t y_value) {
+    // First, check if both X and Y are within the dead zone
+    if ((x_value >= JOYSTICK_CENTER_LOW && x_value <= JOYSTICK_CENTER_HIGH) &&
+        (y_value >= JOYSTICK_CENTER_LOW && y_value <= JOYSTICK_CENTER_HIGH)) {
+        return;
+    
+    } else if (x_value < JOYSTICK_THRESHOLD_NEGATIVE) {
+        move_player(0, -1); 
+    } else if (x_value > JOYSTICK_THRESHOLD_POSITIVE) {
+		move_player(0, 1);  
+    } else if (y_value < JOYSTICK_THRESHOLD_NEGATIVE) {
+		move_player(-1, 0);  
+    } else if (y_value > JOYSTICK_THRESHOLD_POSITIVE) {
+        move_player(1, 0);
+    }
+
+}
 
 static uint32_t second_pased = 0;
-
 bool set = true;
 bool paused = false;
 bool level_2 = false;
 bool muted = false;
-
-
-
-
+#define ADC_X_CHANNEL 0
+#define ADC_Y_CHANNEL 1
+volatile uint16_t adc_value;
+volatile uint8_t x_or_y = 0;
+volatile bool adc_ready = false;
 int main(void)
 {
 	// Setup hardware and callbacks. This will turn on interrupts.
@@ -69,6 +93,12 @@ int main(void)
 	}
 }
 
+void start_conversion(uint8_t channel) {
+    ADMUX = (ADMUX & 0xF8) | channel;
+    ADCSRA |= (1 << ADSC);
+}
+
+
 void initialise_hardware(void)
 {
 	init_ledmatrix();
@@ -77,10 +107,12 @@ void initialise_hardware(void)
 	init_timer0();
 	init_timer1();
 	init_timer2();
+	ADMUX = (1 << REFS0);
+    ADCSRA = (1 << ADEN) | (1 << ADIE) | (1 << ADPS2) | (1 << ADPS1);
+    ADCSRA |= (1 << ADSC);
 
 	// Turn on global interrupts.
 	sei();
-	DDRC |= 0x3F;
 }
 
 void start_screen(void)
@@ -175,11 +207,9 @@ void play_game(void)
 	uint32_t last_sound_time = get_current_time();
 	uint32_t last_animation_time = get_current_time();
 
-	
-	DDRA = 0xFF;
-	DDRC = 1;
+	DDRC = 0xFF;
 	reset_sound();
-
+	uint64_t x_value = 0, y_value = 0;
 	// We play the game until it's over.
 	while (!is_game_over())
 	{
@@ -188,6 +218,7 @@ void play_game(void)
 		// 0 has been pushed, we get BUTTON0_PUSHED, and likewise, if
 		// button 1 has been pushed, we get BUTTON1_PUSHED, and so on.
 		ButtonState btn = button_pushed();
+		
 		
 		
 		if (serial_input_available()) {
@@ -233,15 +264,10 @@ void play_game(void)
 			move_terminal_cursor(6, 20); 
 
 			uint32_t current_time = get_current_time();
-			if (current_time >= last_flash_time + 200)
-			{
-				last_flash_time += 200;
-
-			}
-			if (current_time >= last_second_time + 1000)
-			{
-				last_second_time += 1000;
-			}
+			if (current_time >= last_flash_time + 1) last_flash_time += 1;
+			if (current_time >= last_tflash_time + 1) last_flash_time += 1;
+			if (current_time >= last_second_time + 1)last_second_time += 1;
+			if (current_time >= last_sound_time + 1) last_sound_time += 1;
 
 			if (serial_input_available()) {
 				int serial_input = fgetc(stdin);
@@ -307,8 +333,27 @@ void play_game(void)
 		}
 		current_time = get_current_time();
 		
-		if (current_time >= last_sound_time + 50)
+		if (current_time >= last_sound_time + 100)
 		{
+			if (adc_ready) {
+				if (x_or_y == 0) {
+					x_value = adc_value;
+					move_terminal_cursor(1,0);
+					clear_to_end_of_line();
+					printf_P(PSTR("X: %ld "), x_value);
+					x_or_y = 1;
+				} else {
+					y_value = adc_value;
+					move_terminal_cursor(0,0);
+					clear_to_end_of_line();
+					printf_P(PSTR("Y: %ld\n"), y_value);
+					move_player_by_joystick(x_value, y_value);
+					x_or_y = 0;
+				}
+
+				adc_ready = false;
+				start_conversion(x_or_y);
+			}
 			play_tone(0, 0);
 			if (!muted)
 			{
@@ -333,24 +378,37 @@ void play_game(void)
 		}
 		current_time = get_current_time();
 		if (current_time >= last_animation_time + 250) {
-			if (animation_running){
+			if (animation_running) {
 				animation_ticks++;
-				if (animation_ticks >= 9) {halt_animation(); continue;}
-				printf_P(PSTR("animation %ld"), animation_ticks);
+				if (animation_ticks >= 9) {
+					halt_animation();
+					continue;
+				}
+
 				last_sound_time = current_time;
+				uint8_t terminal_row = 10 + (MATRIX_NUM_ROWS - 1 - target_row) * 2;
+				uint8_t terminal_col = 5 + target_col * 4;
+
+				move_terminal_cursor(terminal_row, terminal_col);
 
 				if (target_color_state == 0) {
 					ledmatrix_update_pixel(target_row, target_col, COLOUR_BLACK);
+					set_display_attribute(BG_BLACK);
 					target_color_state = 1;
-				} else if (target_color_state == 0){
+				} else if (target_color_state == 1) {
 					ledmatrix_update_pixel(target_row, target_col, COLOUR_BOX);
+					set_display_attribute(BG_YELLOW);
 					target_color_state = 2;
-				} else{
+				} else {
 					ledmatrix_update_pixel(target_row, target_col, COLOUR_DONE);
+					set_display_attribute(BG_CYAN);
 					target_color_state = 0;
 				}
-				
+				putchar(' ');
+				putchar(' ');
+				normal_display_mode(); 
 			}
+			last_animation_time = current_time;
 		}
 	}
 	
@@ -435,4 +493,9 @@ void handle_game_over(void)
 			return;
 		}
 	}
+}
+
+ISR(ADC_vect) {
+    adc_value = ADC;
+    adc_ready = true;
 }
