@@ -272,7 +272,7 @@ void play_game(void)
 				} else     if (serial_input == 'z' || serial_input == 'Z') {
 					undo_move();
 				} else if (serial_input == 'y' || serial_input == 'Y'){
-					//redo_move();
+					redo_move();
 				}
 
 			}

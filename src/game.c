@@ -46,6 +46,7 @@ static uint8_t player_col;
 static uint8_t Changed_player_row;
 static uint8_t Changed_player_col;
 static uint8_t step_taken;
+bool redo_mode = false; 
 #define BUZZER_PIN PD2
 
 
@@ -88,6 +89,10 @@ Move move_history[MAX_UNDO];
 uint8_t undo_capacity = 0;
 uint8_t current_move_index = 0;
 
+Move redo_history[MAX_UNDO];
+uint8_t redo_capacity = 0;
+uint8_t current_redo_index = 0;
+
 void save_move(uint8_t player_row, uint8_t player_col, uint8_t box_row, uint8_t box_col, bool box_moved, bool is_diagonal, int8_t delta_row, int8_t delta_col) {
     move_history[current_move_index].player_row = player_row;
     move_history[current_move_index].player_col = player_col;
@@ -102,8 +107,13 @@ void save_move(uint8_t player_row, uint8_t player_col, uint8_t box_row, uint8_t 
     if (undo_capacity < MAX_UNDO) {
         undo_capacity++;
     }
+    if (!redo_mode){
+        redo_capacity = 0;
+        current_redo_index = 0;
+    }
 
-    update_undo_leds(undo_capacity);  // Update LED indicators
+
+    update_undo_leds(undo_capacity);
 }
 
 
@@ -493,12 +503,16 @@ void undo_move() {
         printf_P(PSTR("No moves to undo."));
         return;
     }
-
     current_move_index = (current_move_index == 0) ? MAX_UNDO - 1 : current_move_index - 1;
     Move last_move = move_history[current_move_index];
+    redo_history[current_redo_index] = last_move;
+    current_redo_index = (current_redo_index + 1) % MAX_UNDO;
+    if (redo_capacity < MAX_UNDO) {
+        redo_capacity++;
+    }
     uint8_t old_row = player_row;
     uint8_t old_col = player_col;
-    board[old_col][old_row]= ROOM;
+    
     player_row = last_move.player_row;
     player_col = last_move.player_col;
 
@@ -506,25 +520,19 @@ void undo_move() {
     paint_square(old_row,old_col);
 
     if (last_move.box_moved) {
-
-    if (board[last_move.box_row][last_move.box_col] == (BOX | TARGET)) {
-        halt_animation();
-        board[last_move.box_row][last_move.box_col] = TARGET;
-    } else {
-        board[last_move.box_row][last_move.box_col] = ROOM; 
-    }
-
-    update_square(last_move.box_row, last_move.box_col);
-
-    uint8_t moved_from_x = last_move.box_row - last_move.delta_row;
-    uint8_t moved_from_y = last_move.box_col - last_move.delta_col;  
-
-    board[moved_from_x][moved_from_y] = BOX;
-    update_square(moved_from_x, moved_from_y);
+        if (board[last_move.box_row][last_move.box_col] == (BOX | TARGET)) {
+            halt_animation();
+            board[last_move.box_row][last_move.box_col] = TARGET;
+        } else if (board[last_move.box_row][last_move.box_col] == BOX) {
+            board[last_move.box_row][last_move.box_col] = ROOM; 
+        }
+        update_square(last_move.box_row, last_move.box_col);
+        uint8_t moved_from_x = last_move.box_row - last_move.delta_row;
+        uint8_t moved_from_y = last_move.box_col - last_move.delta_col;  
+        board[moved_from_x][moved_from_y] = BOX;
+        update_square(moved_from_x, moved_from_y);
 
     }
-
-    
     paint_square(last_move.box_moved, last_move.box_moved);
 
     if (last_move.is_diagonal) {
@@ -539,6 +547,26 @@ void undo_move() {
     undo_capacity--;
     update_undo_leds(undo_capacity);
 }
+
+
+void redo_move() {
+    if (redo_capacity == 0) {
+        move_terminal_cursor(3, 20);
+        clear_to_end_of_line();
+        printf_P(PSTR("No moves to redo."));
+        return;
+    }
+    current_redo_index = (current_redo_index == 0) ? MAX_UNDO - 1 : current_redo_index - 1;
+    Move redo_move = redo_history[current_redo_index];
+    redo_capacity--;
+    int8_t delta_row = redo_move.delta_row;
+    int8_t delta_col = redo_move.delta_col;
+    redo_mode = true;
+    move_player(delta_row, delta_col);
+    redo_mode = false;
+    update_undo_leds(undo_capacity);
+}
+
 
 // This function handles player movements.
 void move_player(int8_t delta_row, int8_t delta_col)
@@ -713,8 +741,6 @@ void move_player(int8_t delta_row, int8_t delta_col)
                 board[Changed_player_row][Changed_player_col] = (board[Changed_player_row][Changed_player_col] == (BOX | TARGET)) ? TARGET : ROOM;
                 paint_square(Changed_player_row, Changed_player_col);
                 paint_square(box_behind_row, box_behind_col);
-
-                // Save the move with box interaction
                 save_move(old_row, old_col, box_behind_row, box_behind_col, true, false, delta_row, delta_col);  // Box moved
 
                 player_row = Changed_player_row;
@@ -735,7 +761,7 @@ void move_player(int8_t delta_row, int8_t delta_col)
                 paint_square(Changed_player_row, Changed_player_col);
                 paint_square(box_behind_row, box_behind_col);
 
-                // Save the move with box interaction
+
                 save_move(old_row, old_col, box_behind_row, box_behind_col, true, false, delta_row, delta_col);  // Box moved
 
                 player_row = Changed_player_row;
@@ -745,14 +771,13 @@ void move_player(int8_t delta_row, int8_t delta_col)
             player_row = Changed_player_row;
             player_col = Changed_player_col;
 
-            // Save the move without box interaction
-            save_move(old_row, old_col, 0, 0, false, false, delta_row, delta_col);  // Normal move
+            save_move(old_row, old_col, 0, 0, false, false, delta_row, delta_col); 
+
         } else {
             player_row = Changed_player_row;
             player_col = Changed_player_col;
 
-            // Save the move without box interaction
-            save_move(old_row, old_col, 0, 0, false, false, delta_row, delta_col);  // Normal move
+            save_move(old_row, old_col, 0, 0, false, false, delta_row, delta_col);
         }
 
         move_terminal_cursor(3, 20);

@@ -32,6 +32,7 @@
 #define LED_BASE_PIN PA2
 
 void undo_move(void);
+void redo_move(void);
 
 
 bool play_invalid_move_sound_flag;
