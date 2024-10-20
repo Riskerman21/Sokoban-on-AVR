@@ -29,6 +29,10 @@
 #define COLOUR_TARGET	(COLOUR_RED)
 #define COLOUR_DONE  	(COLOUR_GREEN)
 
+#define LED_BASE_PIN PA2
+
+void undo_move(void);
+
 
 bool play_invalid_move_sound_flag;
 bool play_box_on_target_sound_flag;

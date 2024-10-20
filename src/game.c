@@ -59,6 +59,54 @@ int32_t animation_ticks = 0;
 uint8_t target_row, target_col;
 uint8_t target_color_state = 0;
 
+#define LED_BASE_PIN PA2 
+#define MAX_UNDO 6      
+
+
+void update_undo_leds(uint8_t undo_capacity) {
+    for (uint8_t i = 0; i < MAX_UNDO; i++) {
+        if (i < undo_capacity) {
+            PORTA |= (1 << (LED_BASE_PIN + i));
+        } else {
+            PORTA &= ~(1 << (LED_BASE_PIN + i));
+        }
+    }
+}
+
+typedef struct {
+    uint8_t player_row;
+    uint8_t player_col;
+    uint8_t box_row;
+    uint8_t box_col;
+    bool box_moved;
+    bool is_diagonal;
+    int8_t delta_row;
+    int8_t delta_col;
+} Move;
+
+Move move_history[MAX_UNDO];
+uint8_t undo_capacity = 0;
+uint8_t current_move_index = 0;
+
+void save_move(uint8_t player_row, uint8_t player_col, uint8_t box_row, uint8_t box_col, bool box_moved, bool is_diagonal, int8_t delta_row, int8_t delta_col) {
+    move_history[current_move_index].player_row = player_row;
+    move_history[current_move_index].player_col = player_col;
+    move_history[current_move_index].box_row = box_row;
+    move_history[current_move_index].box_col = box_col;
+    move_history[current_move_index].box_moved = box_moved;
+    move_history[current_move_index].is_diagonal = is_diagonal;
+    move_history[current_move_index].delta_row = delta_row;
+    move_history[current_move_index].delta_col = delta_col;
+
+    current_move_index = (current_move_index + 1) % MAX_UNDO;
+    if (undo_capacity < MAX_UNDO) {
+        undo_capacity++;
+    }
+
+    update_undo_leds(undo_capacity);  // Update LED indicators
+}
+
+
 
 int get_steps(void) {
 	return step_taken;
@@ -438,6 +486,59 @@ void display_hit_wall_message(void) {
 }
 
 
+void undo_move() {
+    if (undo_capacity == 0) {
+        move_terminal_cursor(3, 20);
+        clear_to_end_of_line();
+        printf_P(PSTR("No moves to undo."));
+        return;
+    }
+
+    current_move_index = (current_move_index == 0) ? MAX_UNDO - 1 : current_move_index - 1;
+    Move last_move = move_history[current_move_index];
+    uint8_t old_row = player_row;
+    uint8_t old_col = player_col;
+    board[old_col][old_row]= ROOM;
+    player_row = last_move.player_row;
+    player_col = last_move.player_col;
+
+    paint_square(player_row, player_col);
+    paint_square(old_row,old_col);
+
+    if (last_move.box_moved) {
+
+    if (board[last_move.box_row][last_move.box_col] == (BOX | TARGET)) {
+        halt_animation();
+        board[last_move.box_row][last_move.box_col] = TARGET;
+    } else {
+        board[last_move.box_row][last_move.box_col] = ROOM; 
+    }
+
+    update_square(last_move.box_row, last_move.box_col);
+
+    uint8_t moved_from_x = last_move.box_row - last_move.delta_row;
+    uint8_t moved_from_y = last_move.box_col - last_move.delta_col;  
+
+    board[moved_from_x][moved_from_y] = BOX;
+    update_square(moved_from_x, moved_from_y);
+
+    }
+
+    
+    paint_square(last_move.box_moved, last_move.box_moved);
+
+    if (last_move.is_diagonal) {
+        step_taken -= 2; 
+    } else {
+        step_taken--;
+    }
+
+    reset_sound();
+    play_player_moved_sound_flag = true;
+
+    undo_capacity--;
+    update_undo_leds(undo_capacity);
+}
 
 // This function handles player movements.
 void move_player(int8_t delta_row, int8_t delta_col)
@@ -494,7 +595,7 @@ void move_player(int8_t delta_row, int8_t delta_col)
 	// |    message area of the terminal and return a valid indicating a |
 	// |    valid move.                                                  |
 	// +-----------------------------------------------------------------+
-    paint_square(player_row, player_col);
+      paint_square(player_row, player_col);
 
     uint8_t old_row = player_row;
     uint8_t old_col = player_col;
@@ -531,8 +632,10 @@ void move_player(int8_t delta_row, int8_t delta_col)
             player_row = final_row;
             paint_square(intermediate_row_horiz_first, old_col);
             update_square(old_row, old_col);
-
             paint_square(final_row, player_col);
+
+            // Save the diagonal move
+            save_move(old_row, old_col, 0, 0, false, true, delta_row, delta_col);  // Diagonal move, no box
             reset_sound();
             play_player_moved_sound_flag = true;
             step_taken += 2;
@@ -542,8 +645,10 @@ void move_player(int8_t delta_row, int8_t delta_col)
             player_col = final_col;
             paint_square(intermediate_row_vert_first, old_col);
             update_square(old_row, old_col);
-
             paint_square(final_row, player_col);
+
+            // Save the diagonal move
+            save_move(old_row, old_col, 0, 0, false, true, delta_row, delta_col);  // Diagonal move, no box
             reset_sound();
             play_player_moved_sound_flag = true;
             step_taken += 2;
@@ -588,6 +693,10 @@ void move_player(int8_t delta_row, int8_t delta_col)
                 board[Changed_player_row][Changed_player_col] = TARGET;
                 paint_square(Changed_player_row, Changed_player_col);
                 paint_square(box_behind_row, box_behind_col);
+
+                // Save the move with box interaction
+                save_move(old_row, old_col, box_behind_row, box_behind_col, true, false, delta_row, delta_col);  // Box moved
+
                 player_row = Changed_player_row;
                 player_col = Changed_player_col;
                 move_terminal_cursor(3, 20);
@@ -604,6 +713,10 @@ void move_player(int8_t delta_row, int8_t delta_col)
                 board[Changed_player_row][Changed_player_col] = (board[Changed_player_row][Changed_player_col] == (BOX | TARGET)) ? TARGET : ROOM;
                 paint_square(Changed_player_row, Changed_player_col);
                 paint_square(box_behind_row, box_behind_col);
+
+                // Save the move with box interaction
+                save_move(old_row, old_col, box_behind_row, box_behind_col, true, false, delta_row, delta_col);  // Box moved
+
                 player_row = Changed_player_row;
                 player_col = Changed_player_col;
                 move_terminal_cursor(3, 20);
@@ -621,16 +734,27 @@ void move_player(int8_t delta_row, int8_t delta_col)
                 board[Changed_player_row][Changed_player_col] = (board[Changed_player_row][Changed_player_col] == (BOX | TARGET)) ? TARGET : ROOM;
                 paint_square(Changed_player_row, Changed_player_col);
                 paint_square(box_behind_row, box_behind_col);
+
+                // Save the move with box interaction
+                save_move(old_row, old_col, box_behind_row, box_behind_col, true, false, delta_row, delta_col);  // Box moved
+
                 player_row = Changed_player_row;
                 player_col = Changed_player_col;
             }
         } else if (board[Changed_player_row][Changed_player_col] == TARGET) {
             player_row = Changed_player_row;
             player_col = Changed_player_col;
+
+            // Save the move without box interaction
+            save_move(old_row, old_col, 0, 0, false, false, delta_row, delta_col);  // Normal move
         } else {
             player_row = Changed_player_row;
             player_col = Changed_player_col;
+
+            // Save the move without box interaction
+            save_move(old_row, old_col, 0, 0, false, false, delta_row, delta_col);  // Normal move
         }
+
         move_terminal_cursor(3, 20);
         clear_to_end_of_line();
         step_taken++;
@@ -640,6 +764,7 @@ void move_player(int8_t delta_row, int8_t delta_col)
         play_player_moved_sound_flag = true;
     }
 }
+
 void clear_game_board(void) {
     uint8_t terminal_start_row = 10; 
     uint8_t terminal_start_col = 5;  

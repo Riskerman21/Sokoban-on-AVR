@@ -125,6 +125,13 @@ void initialise_hardware(void)
     ADCSRA = (1 << ADEN) | (1 << ADIE) | (1 << ADPS2) | (1 << ADPS1);
     ADCSRA |= (1 << ADSC);
 
+	DDRA |= ((1 << (LED_BASE_PIN + 0)) | 
+			(1 << (LED_BASE_PIN + 1)) | 
+			(1 << (LED_BASE_PIN + 2)) | 
+			(1 << (LED_BASE_PIN + 3)) | 
+			(1 << (LED_BASE_PIN + 4)) | 
+			(1 << (LED_BASE_PIN + 5)));
+
 	// Turn on global interrupts.
 	sei();
 }
@@ -263,7 +270,9 @@ void play_game(void)
 				} else if (serial_input == 'Q' || serial_input == 'q') {
 					muted = !muted;
 				} else     if (serial_input == 'z' || serial_input == 'Z') {
-					//undo_last_move();
+					undo_move();
+				} else if (serial_input == 'y' || serial_input == 'Y'){
+					//redo_move();
 				}
 
 			}
