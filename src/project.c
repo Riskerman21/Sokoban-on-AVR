@@ -196,13 +196,18 @@ void start_screen(void)
 				level_2 = true;
 				break;
 			} else if (serial_input == 'r' || serial_input == 'R') {
-				EEPROM_write(EEPROM_SIGNATURE_ADDR, 0);
-				break;
-			} else if (serial_input == 'r' || serial_input == 'R') {
-				EEPROM_write(EEPROM_SIGNATURE_ADDR, 0);
-				move_terminal_cursor(3, 20);
-				clear_to_end_of_line();
-				printf_P(PSTR("Progress deleted."));
+				if (save_available_flag) {
+					EEPROM_write(EEPROM_SIGNATURE_ADDR, 0);
+					break;
+				}
+			} else if (serial_input == 'd' || serial_input == 'D') {
+				if (save_available_flag) {
+					EEPROM_write(EEPROM_SIGNATURE_ADDR, 0);
+					move_terminal_cursor(13, 5);
+					clear_to_end_of_line();
+					printf_P(PSTR("Progress deleted."));
+					save_available_flag = false;
+				}
 			}
 
 		}
@@ -296,7 +301,7 @@ void play_game(void)
 
 			}
 		
-		if (set) {
+		if (set && !second_pased) {
 			second_pased = 0;
 			move_terminal_cursor(5, 20); 
 			printf_P(PSTR("Time Elapsed: %ld s\n"), second_pased);
@@ -326,9 +331,9 @@ void play_game(void)
 							int serial_input = fgetc(stdin);
 							if (serial_input == 'y' || serial_input == 'Y'){
 								save_game_to_eeprom(second_pased);
-								main();
+								asm volatile ("jmp 0x0000");
 							} else if (serial_input == 'n' || serial_input == 'N'){
-								main();
+								asm volatile ("jmp 0x0000");
 								
 							}
 						}

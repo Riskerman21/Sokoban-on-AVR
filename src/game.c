@@ -868,10 +868,6 @@ void save_game_to_eeprom(uint8_t seconds_pased) {
             EEPROM_write(eeprom_addr++, board[row][col]);
         }
     }
-
-    move_terminal_cursor(3, 20);
-    clear_to_end_of_line();
-    printf_P(PSTR("Game progress saved!"));
 }
 
 uint64_t restore_game_from_eeprom() {
