@@ -59,6 +59,7 @@ int32_t animation_ticks = 0;
 uint8_t target_row, target_col;
 uint8_t target_color_state = 0;
 
+
 int get_steps(void) {
 	return step_taken;
 } 
@@ -493,100 +494,151 @@ void move_player(int8_t delta_row, int8_t delta_col)
 	// |    message area of the terminal and return a valid indicating a |
 	// |    valid move.                                                  |
 	// +-----------------------------------------------------------------+
+    paint_square(player_row, player_col);
 
-	    paint_square(player_row, player_col);
+    uint8_t old_row = player_row;
+    uint8_t old_col = player_col;
 
-    uint8_t old_row = player_row;  // Save the current row before moving
-    uint8_t old_col = player_col;  // Save the current col before moving
+    if (delta_row != 0 && delta_col != 0) {
+        uint8_t intermediate_row_horiz_first, intermediate_col_horiz_first;
+        uint8_t intermediate_row_vert_first, intermediate_col_vert_first;
+        uint8_t final_row = (player_row + delta_row + MATRIX_NUM_ROWS) % MATRIX_NUM_ROWS;
+        uint8_t final_col = (player_col + delta_col + MATRIX_NUM_COLUMNS) % MATRIX_NUM_COLUMNS;
 
-    Changed_player_row = (player_row + delta_row + MATRIX_NUM_ROWS) % MATRIX_NUM_ROWS;
-    Changed_player_col = (player_col + delta_col + MATRIX_NUM_COLUMNS) % MATRIX_NUM_COLUMNS;
+        // Horizontal first, then vertical
+        intermediate_row_horiz_first = player_row;
+        intermediate_col_horiz_first = (player_col + delta_col + MATRIX_NUM_COLUMNS) % MATRIX_NUM_COLUMNS;
 
-    if (board[Changed_player_row][Changed_player_col] == WALL) {
-        display_hit_wall_message();
-        return;
-    } else if (board[Changed_player_row][Changed_player_col] == BOX || board[Changed_player_row][Changed_player_col] == (BOX | TARGET)) {
-        uint8_t box_behind_row = (Changed_player_row + delta_row + MATRIX_NUM_ROWS) % MATRIX_NUM_ROWS;
-        uint8_t box_behind_col = (Changed_player_col + delta_col + MATRIX_NUM_COLUMNS) % MATRIX_NUM_COLUMNS;
+        // Vertical first, then horizontal
+        intermediate_row_vert_first = (player_row + delta_row + MATRIX_NUM_ROWS) % MATRIX_NUM_ROWS;
+        intermediate_col_vert_first = player_col;
 
-        if (board[box_behind_row][box_behind_col] == WALL) {
-            move_terminal_cursor(3, 20); 
-            clear_to_end_of_line();
-            printf_P(PSTR("Unless you got a drill, I Cannot push box onto wall"));
-            reset_sound();
-            play_invalid_move_sound_flag = true;
-            return;
+        // Check horizontal-first path
+        bool can_move_horiz_first = (board[intermediate_row_horiz_first][intermediate_col_horiz_first] != WALL && 
+                                     board[intermediate_row_horiz_first][intermediate_col_horiz_first] != BOX &&
+                                     board[final_row][final_col] != WALL && 
+                                     board[final_row][final_col] != BOX);
 
-        } else if (board[box_behind_row][box_behind_col] == BOX || board[box_behind_row][box_behind_col] == (BOX | TARGET)) {
-            move_terminal_cursor(3, 20); 
-            clear_to_end_of_line();
-            printf_P(PSTR("That's too heavy, Cannot stack boxes"));
-            reset_sound();
-            play_invalid_move_sound_flag = true;
-            return;
+        // Check vertical-first path
+        bool can_move_vert_first = (board[intermediate_row_vert_first][intermediate_col_vert_first] != WALL && 
+                                    board[intermediate_row_vert_first][intermediate_col_vert_first] != BOX &&
+                                    board[final_row][final_col] != WALL && 
+                                    board[final_row][final_col] != BOX);
 
-        } else if (board[Changed_player_row][Changed_player_col] == (BOX | TARGET)) {
-            // Box is on target and is now being moved off
-            halt_animation();  // Stop animation as box is moved off target
+        if (can_move_horiz_first) {
+            // Move horizontally first, then vertically
+            player_col = intermediate_col_horiz_first;
+            player_row = final_row;
+            paint_square(intermediate_row_horiz_first, old_col);
+            update_square(old_row, old_col);
 
-            board[box_behind_row][box_behind_col] = BOX;
-            board[Changed_player_row][Changed_player_col] = TARGET;
-            paint_square(Changed_player_row, Changed_player_col);
-            paint_square(box_behind_row, box_behind_col);
-            player_row = Changed_player_row;
-            player_col = Changed_player_col;
-            move_terminal_cursor(3, 20); 
-            clear_to_end_of_line();
-            printf_P(PSTR("Box moved off target"));
-            step_taken++;
-            update_square(old_row, old_col); 
-            update_square(player_row, player_col);
+            paint_square(final_row, player_col);
             reset_sound();
             play_player_moved_sound_flag = true;
-            return;
+            step_taken += 2;
+        } else if (can_move_vert_first) {
+            // Move vertically first, then horizontally
+            player_row = intermediate_row_vert_first;
+            player_col = final_col;
+            paint_square(intermediate_row_vert_first, old_col);
+            update_square(old_row, old_col);
 
-        } else if (board[box_behind_row][box_behind_col] == TARGET) {
-            // Box is moved onto a new target
-            board[box_behind_row][box_behind_col] = BOX | TARGET;
-            board[Changed_player_row][Changed_player_col] = (board[Changed_player_row][Changed_player_col] == (BOX | TARGET)) ? TARGET : ROOM;
-            paint_square(Changed_player_row, Changed_player_col);
-            paint_square(box_behind_row, box_behind_col);
+            paint_square(final_row, player_col);
+            reset_sound();
+            play_player_moved_sound_flag = true;
+            step_taken += 2;
+        } else {
+            // Neither path is valid, treat as an invalid move
+            move_terminal_cursor(3, 20);
+            clear_to_end_of_line();
+            reset_sound();
+            play_invalid_move_sound_flag = true;
+            printf_P(PSTR("Cannot move diagonally due to obstacles."));
+            return;
+        }
+
+    } else {
+        Changed_player_row = (player_row + delta_row + MATRIX_NUM_ROWS) % MATRIX_NUM_ROWS;
+        Changed_player_col = (player_col + delta_col + MATRIX_NUM_COLUMNS) % MATRIX_NUM_COLUMNS;
+
+        if (board[Changed_player_row][Changed_player_col] == WALL) {
+            display_hit_wall_message();
+            return;
+        } else if (board[Changed_player_row][Changed_player_col] == BOX || board[Changed_player_row][Changed_player_col] == (BOX | TARGET)) {
+            uint8_t box_behind_row = (Changed_player_row + delta_row + MATRIX_NUM_ROWS) % MATRIX_NUM_ROWS;
+            uint8_t box_behind_col = (Changed_player_col + delta_col + MATRIX_NUM_COLUMNS) % MATRIX_NUM_COLUMNS;
+
+            if (board[box_behind_row][box_behind_col] == WALL) {
+                move_terminal_cursor(3, 20);
+                clear_to_end_of_line();
+                printf_P(PSTR("Unless you got a drill, I Cannot push box onto wall"));
+                reset_sound();
+                play_invalid_move_sound_flag = true;
+                return;
+            } else if (board[box_behind_row][box_behind_col] == BOX || board[box_behind_row][box_behind_col] == (BOX | TARGET)) {
+                move_terminal_cursor(3, 20);
+                clear_to_end_of_line();
+                printf_P(PSTR("That's too heavy, Cannot stack boxes"));
+                reset_sound();
+                play_invalid_move_sound_flag = true;
+                return;
+            } else if (board[Changed_player_row][Changed_player_col] == (BOX | TARGET)) {
+                halt_animation();
+                board[box_behind_row][box_behind_col] = BOX;
+                board[Changed_player_row][Changed_player_col] = TARGET;
+                paint_square(Changed_player_row, Changed_player_col);
+                paint_square(box_behind_row, box_behind_col);
+                player_row = Changed_player_row;
+                player_col = Changed_player_col;
+                move_terminal_cursor(3, 20);
+                clear_to_end_of_line();
+                printf_P(PSTR("Box moved off target"));
+                step_taken++;
+                update_square(old_row, old_col);
+                update_square(player_row, player_col);
+                reset_sound();
+                play_player_moved_sound_flag = true;
+                return;
+            } else if (board[box_behind_row][box_behind_col] == TARGET) {
+                board[box_behind_row][box_behind_col] = BOX | TARGET;
+                board[Changed_player_row][Changed_player_col] = (board[Changed_player_row][Changed_player_col] == (BOX | TARGET)) ? TARGET : ROOM;
+                paint_square(Changed_player_row, Changed_player_col);
+                paint_square(box_behind_row, box_behind_col);
+                player_row = Changed_player_row;
+                player_col = Changed_player_col;
+                move_terminal_cursor(3, 20);
+                clear_to_end_of_line();
+                printf_P(PSTR("Box moved onto target"));
+                animate_target(box_behind_row, box_behind_col);
+                step_taken++;
+                update_square(old_row, old_col);
+                update_square(player_row, player_col);
+                reset_sound();
+                play_box_on_target_sound_flag = true;
+                return;
+            } else {
+                board[box_behind_row][box_behind_col] = BOX;
+                board[Changed_player_row][Changed_player_col] = (board[Changed_player_row][Changed_player_col] == (BOX | TARGET)) ? TARGET : ROOM;
+                paint_square(Changed_player_row, Changed_player_col);
+                paint_square(box_behind_row, box_behind_col);
+                player_row = Changed_player_row;
+                player_col = Changed_player_col;
+            }
+        } else if (board[Changed_player_row][Changed_player_col] == TARGET) {
             player_row = Changed_player_row;
             player_col = Changed_player_col;
-            move_terminal_cursor(3, 20); 
-            clear_to_end_of_line();
-            printf_P(PSTR("Box moved onto target"));
-            animate_target(box_behind_row, box_behind_col);
-            step_taken++;
-            update_square(old_row, old_col); 
-            update_square(player_row, player_col); 
-            reset_sound();
-            play_box_on_target_sound_flag = true;
-            return;
-
         } else {
-            board[box_behind_row][box_behind_col] = BOX;
-            board[Changed_player_row][Changed_player_col] = (board[Changed_player_row][Changed_player_col] == (BOX | TARGET)) ? TARGET : ROOM;
-            paint_square(Changed_player_row, Changed_player_col);
-            paint_square(box_behind_row, box_behind_col);
             player_row = Changed_player_row;
             player_col = Changed_player_col;
         }
-    } else if (board[Changed_player_row][Changed_player_col] == TARGET) {
-        player_row = Changed_player_row;
-        player_col = Changed_player_col;
-    } else {
-        player_row = Changed_player_row;
-        player_col = Changed_player_col;
+        move_terminal_cursor(3, 20);
+        clear_to_end_of_line();
+        step_taken++;
+        update_square(old_row, old_col);
+        update_square(player_row, player_col);
+        reset_sound();
+        play_player_moved_sound_flag = true;
     }
-    move_terminal_cursor(3, 20); 
-    clear_to_end_of_line();
-    step_taken++;
-    update_square(old_row, old_col); 
-    update_square(player_row, player_col); 
-    reset_sound();
-    play_player_moved_sound_flag = true;
-	
 }
 void clear_game_board(void) {
     uint8_t terminal_start_row = 10; 

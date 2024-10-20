@@ -42,30 +42,44 @@ void handle_game_over(void);
 
 
 /////////////////////////////// main //////////////////////////////////
+
+// Error margin for allowing a bit of movement deviation
 #define JOYSTICK_CENTER_LOW 450  
 #define JOYSTICK_CENTER_HIGH 600 
 
-#define JOYSTICK_THRESHOLD_NEGATIVE 100  
+#define JOYSTICK_THRESHOLD_NEGATIVE 150  
 #define JOYSTICK_THRESHOLD_POSITIVE 950  
-#define JOYSTICK_THRESHOLD_diagonal 800
+#define JOYSTICK_THRESHOLD_DIAGONAL 650  
 
 void move_player_by_joystick(uint64_t x_value, uint64_t y_value) {
-    // First, check if both X and Y are within the dead zone
     if ((x_value >= JOYSTICK_CENTER_LOW && x_value <= JOYSTICK_CENTER_HIGH) &&
         (y_value >= JOYSTICK_CENTER_LOW && y_value <= JOYSTICK_CENTER_HIGH)) {
-        return;
-    
-    } else if (x_value < JOYSTICK_THRESHOLD_NEGATIVE) {
-        move_player(0, -1); 
-    } else if (x_value > JOYSTICK_THRESHOLD_POSITIVE) {
-		move_player(0, 1);  
-    } else if (y_value < JOYSTICK_THRESHOLD_NEGATIVE) {
-		move_player(-1, 0);  
-    } else if (y_value > JOYSTICK_THRESHOLD_POSITIVE) {
-        move_player(1, 0);
+        return;  
     }
 
+    if (x_value > JOYSTICK_THRESHOLD_POSITIVE && y_value > JOYSTICK_THRESHOLD_DIAGONAL) {
+        move_player(1, 1);  // Northeast
+    } else if (x_value > JOYSTICK_THRESHOLD_POSITIVE && y_value < JOYSTICK_THRESHOLD_NEGATIVE) {
+		move_player(-1, 1);  // Southeast
+    } else if (x_value < JOYSTICK_THRESHOLD_NEGATIVE && y_value > JOYSTICK_THRESHOLD_DIAGONAL) {
+        move_player(1, -1); // Northwest
+    } else if (x_value < JOYSTICK_THRESHOLD_NEGATIVE && y_value < JOYSTICK_THRESHOLD_NEGATIVE) {
+        move_player(-1, -1);  // Southwest
+    }
+    // Handle horizontal movements:
+    else if (x_value > JOYSTICK_THRESHOLD_POSITIVE) {
+        move_player(0, 1);  // Move right
+    } else if (x_value < JOYSTICK_THRESHOLD_NEGATIVE) {
+        move_player(0, -1);  // Move left
+    }
+    // Handle vertical movements:
+    else if (y_value > JOYSTICK_THRESHOLD_POSITIVE) {
+		move_player(1, 0); // Move up 
+    } else if (y_value < JOYSTICK_THRESHOLD_NEGATIVE) {
+        move_player(-1, 0); // Move down 
+    }
 }
+
 
 static uint32_t second_pased = 0;
 bool set = true;
@@ -313,6 +327,25 @@ void play_game(void)
 		{
 			flash_player();
 			last_flash_time = current_time;
+			if (adc_ready) {
+				if (x_or_y == 0) {
+					x_value = adc_value;
+					move_terminal_cursor(1,0);
+					clear_to_end_of_line();
+					printf_P(PSTR("X: %ld "), x_value);
+					x_or_y = 1;
+				} else {
+					y_value = adc_value;
+					move_terminal_cursor(0,0);
+					clear_to_end_of_line();
+					printf_P(PSTR("Y: %ld\n"), y_value);
+					move_player_by_joystick(x_value, y_value);
+					x_or_y = 0;
+				}
+
+				adc_ready = false;
+				start_conversion(x_or_y);
+			}
 
 		}
 		current_time = get_current_time();
@@ -335,25 +368,6 @@ void play_game(void)
 		
 		if (current_time >= last_sound_time + 100)
 		{
-			if (adc_ready) {
-				if (x_or_y == 0) {
-					x_value = adc_value;
-					move_terminal_cursor(1,0);
-					clear_to_end_of_line();
-					printf_P(PSTR("X: %ld "), x_value);
-					x_or_y = 1;
-				} else {
-					y_value = adc_value;
-					move_terminal_cursor(0,0);
-					clear_to_end_of_line();
-					printf_P(PSTR("Y: %ld\n"), y_value);
-					move_player_by_joystick(x_value, y_value);
-					x_or_y = 0;
-				}
-
-				adc_ready = false;
-				start_conversion(x_or_y);
-			}
 			play_tone(0, 0);
 			if (!muted)
 			{
