@@ -309,6 +309,7 @@ void play_game(void)
 		}
 		if (paused) {
 			move_terminal_cursor(6, 20); 
+			play_tone(0,0);
 
 			uint32_t current_time = get_current_time();
 			if (current_time >= last_flash_time + 1) last_flash_time += 1;
@@ -490,7 +491,6 @@ void handle_game_over(void)
 	uint32_t T = time_elapsed; 
 
 	score = (max(200 - S, 0) * 20) + max(1200 - T, 0);
-	
 
 	move_terminal_cursor(10, 5);
 	printf_P(PSTR("Congratulations! You've completed the level.\n"));
