@@ -66,22 +66,20 @@ void move_player_by_joystick(uint64_t x_value, uint64_t y_value) {
     } else if (x_value < JOYSTICK_THRESHOLD_NEGATIVE && y_value < JOYSTICK_THRESHOLD_NEGATIVE) {
         move_player(-1, -1);  // Southwest
     }
-    // Handle horizontal movements:
     else if (x_value > JOYSTICK_THRESHOLD_POSITIVE) {
-        move_player(0, 1);  // Move right
+        move_player(0, 1);
     } else if (x_value < JOYSTICK_THRESHOLD_NEGATIVE) {
-        move_player(0, -1);  // Move left
+        move_player(0, -1);
     }
-    // Handle vertical movements:
     else if (y_value > JOYSTICK_THRESHOLD_POSITIVE) {
-		move_player(1, 0); // Move up 
+		move_player(1, 0); 
     } else if (y_value < JOYSTICK_THRESHOLD_NEGATIVE) {
-        move_player(-1, 0); // Move down 
+        move_player(-1, 0);  
     }
 }
 
 
-static uint32_t second_pased = 0;
+static uint64_t second_pased = 0;
 bool set = true;
 bool paused = false;
 bool level_2 = false;
@@ -151,6 +149,14 @@ void start_screen(void)
 	// chevrons - "<" and ">"!
 	printf_P(PSTR("CSSE2010/7201 Project by Abdallah Azazy - 47994832"));
 
+	uint8_t signature = EEPROM_read(EEPROM_SIGNATURE_ADDR);
+    if (signature == EEPROM_SIGNATURE) {
+		save_available_flag = true; //yeppie
+		move_terminal_cursor(13, 5);
+        printf_P(PSTR("Saved game available. Press 'r' to restore or 'd' to delete."));
+    }
+
+
 	// Setup the start screen on the LED matrix.
 	setup_start_screen();
 
@@ -181,6 +187,7 @@ void start_screen(void)
 			// breaking out of this loop.
 			if (serial_input == 's' || serial_input == 'S')
 			{
+				save_available_flag = false;
 				break;
 			} else if (serial_input == 'q' || serial_input == 'Q') {
 				muted = !muted;
@@ -188,7 +195,16 @@ void start_screen(void)
 			else if (serial_input == '2') {
 				level_2 = true;
 				break;
+			} else if (serial_input == 'r' || serial_input == 'R') {
+				EEPROM_write(EEPROM_SIGNATURE_ADDR, 0);
+				break;
+			} else if (serial_input == 'r' || serial_input == 'R') {
+				EEPROM_write(EEPROM_SIGNATURE_ADDR, 0);
+				move_terminal_cursor(3, 20);
+				clear_to_end_of_line();
+				printf_P(PSTR("Progress deleted."));
 			}
+
 		}
 
 		// No button presses and no 's'/'S' typed into the terminal,
@@ -215,6 +231,9 @@ void new_game(void)
 
 	move_terminal_cursor(5, 20); 
 	clear_to_end_of_line();
+	paused = false;
+	second_pased = recovered_time;
+
 	printf_P(PSTR("Time Elapsed: %ld s\n"), second_pased);
 }
 
@@ -230,7 +249,7 @@ void play_game(void)
 
 	DDRC = 0xFF;
 	reset_sound();
-	uint64_t x_value = 0, y_value = 0;
+	uint64_t x_value = 512, y_value = 512;
 	// We play the game until it's over.
 	while (!is_game_over())
 	{
@@ -260,7 +279,7 @@ void play_game(void)
 					paused = !paused;
 					if (paused) {
 						move_terminal_cursor(6, 20); 
-						printf_P(PSTR("Paused - press 'p'/'P' to continue"));
+						printf_P(PSTR("Paused - press 'p'/'P' to continue or press 'x'/'X' to exit"));
 					} else {
 						move_terminal_cursor(6, 20); 
 						clear_to_end_of_line();
@@ -298,7 +317,25 @@ void play_game(void)
 					paused = !paused;
 					move_terminal_cursor(6, 20); 
 					clear_to_end_of_line();
-				}
+				} else if (serial_input == 'X' || serial_input == 'x' ) {
+					move_terminal_cursor(6, 20); 
+					clear_to_end_of_line();
+					printf_P(PSTR("Would you like to save game progress?[y/n]"));
+					while (1){
+						if (serial_input_available()){
+							int serial_input = fgetc(stdin);
+							if (serial_input == 'y' || serial_input == 'Y'){
+								save_game_to_eeprom(second_pased);
+								main();
+							} else if (serial_input == 'n' || serial_input == 'N'){
+								main();
+								
+							}
+						}
+
+					}
+
+				} 
 			}
 
 			continue;

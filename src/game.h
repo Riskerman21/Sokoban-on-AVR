@@ -30,6 +30,8 @@
 #define COLOUR_DONE  	(COLOUR_GREEN)
 
 #define LED_BASE_PIN PA2
+#define EEPROM_SIGNATURE 0xA5
+#define EEPROM_SIGNATURE_ADDR 0x00
 
 void undo_move(void);
 void redo_move(void);
@@ -46,6 +48,12 @@ bool animation_running;
 int32_t animation_ticks;
 uint8_t target_row, target_col;
 uint8_t target_color_state;
+void save_game_to_eeprom(uint8_t seconds_pased);
+uint64_t restore_game_from_eeprom(void);
+void EEPROM_write(unsigned int uiAddress, unsigned char ucData);
+unsigned char EEPROM_read(unsigned int uiAddress);
+bool save_available_flag;
+uint64_t recovered_time;
 
 
 void play_invalid_move_sound(int order);

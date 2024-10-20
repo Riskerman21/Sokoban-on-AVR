@@ -47,9 +47,10 @@ static uint8_t Changed_player_row;
 static uint8_t Changed_player_col;
 static uint8_t step_taken;
 bool redo_mode = false; 
+bool save_available_flag = false;
 #define BUZZER_PIN PD2
 
-
+uint64_t recovered_time = 0;
 bool play_player_moved_sound_flag = false;
 bool play_invalid_move_sound_flag = false;
 bool play_box_on_target_sound_flag = false;
@@ -62,6 +63,13 @@ uint8_t target_color_state = 0;
 
 #define LED_BASE_PIN PA2 
 #define MAX_UNDO 6      
+#define EEPROM_SIGNATURE 0xA5
+#define EEPROM_SIGNATURE_ADDR 0x00
+#define EEPROM_PLAYER_ROW_ADDR 0x01
+#define EEPROM_PLAYER_COL_ADDR 0x02
+#define EEPROM_STEP_COUNT_ADDR 0x03
+#define EEPROM_TIME_ELAPSED_ADDR  0x04  
+#define EEPROM_BOARD_START_ADDR  0x20
 
 
 void update_undo_leds(uint8_t undo_capacity) {
@@ -328,6 +336,7 @@ void initialise_game(bool next_level)
 	#define W	(WALL)
 	#define T	(TARGET)
 	#define B	(BOX)
+    recovered_time = 0;
 	move_terminal_cursor(2, 40); 
 	step_taken = 0;
 
@@ -398,6 +407,10 @@ void initialise_game(bool next_level)
 		}
 	}
 
+    if (save_available_flag) {
+        recovered_time = restore_game_from_eeprom();
+        save_available_flag = false;
+    }
 	// Draw the game board (map).
 	for (uint8_t row = 0; row < MATRIX_NUM_ROWS; row++)
 	{
@@ -406,6 +419,7 @@ void initialise_game(bool next_level)
 			paint_square(row, col);
 		}
 	}
+
 	
 }
 bool on_top_of_target_flag = false;
@@ -823,4 +837,59 @@ bool is_game_over(void)
 
 	clear_game_board();
     return true;
+}
+
+void EEPROM_write(unsigned int uiAddress, unsigned char ucData) {
+    while(EECR & (1<<EEPE));
+    EEAR = uiAddress;
+    EEDR = ucData;
+    EECR |= (1<<EEMPE);
+    EECR |= (1<<EEPE);
+}
+
+unsigned char EEPROM_read(unsigned int uiAddress){
+    while(EECR & (1<<EEPE));
+    EEAR = uiAddress;
+    EECR |= (1<<EERE);
+    return EEDR;
+}
+
+void save_game_to_eeprom(uint8_t seconds_pased) {
+
+    EEPROM_write(EEPROM_SIGNATURE_ADDR, EEPROM_SIGNATURE);
+    EEPROM_write(EEPROM_PLAYER_ROW_ADDR, player_row);
+    EEPROM_write(EEPROM_PLAYER_COL_ADDR, player_col);
+    EEPROM_write(EEPROM_STEP_COUNT_ADDR, step_taken);
+    EEPROM_write(EEPROM_TIME_ELAPSED_ADDR, seconds_pased);
+
+    uint16_t eeprom_addr = EEPROM_BOARD_START_ADDR;
+    for (uint8_t row = 0; row < MATRIX_NUM_ROWS; row++) {
+        for (uint8_t col = 0; col < MATRIX_NUM_COLUMNS; col++) {
+            EEPROM_write(eeprom_addr++, board[row][col]);
+        }
+    }
+
+    move_terminal_cursor(3, 20);
+    clear_to_end_of_line();
+    printf_P(PSTR("Game progress saved!"));
+}
+
+uint64_t restore_game_from_eeprom() {
+    player_row = EEPROM_read(EEPROM_PLAYER_ROW_ADDR);
+    player_col = EEPROM_read(EEPROM_PLAYER_COL_ADDR);
+    step_taken = EEPROM_read(EEPROM_STEP_COUNT_ADDR);
+
+    uint64_t time_elapsed = EEPROM_read(EEPROM_TIME_ELAPSED_ADDR);
+
+    uint16_t eeprom_addr = EEPROM_BOARD_START_ADDR;
+    for (uint8_t row = 0; row < MATRIX_NUM_ROWS; row++) {
+        for (uint8_t col = 0; col < MATRIX_NUM_COLUMNS; col++) {
+            board[row][col] = EEPROM_read(eeprom_addr++);
+        }
+    }
+
+    move_terminal_cursor(3, 20);
+    clear_to_end_of_line();
+    printf_P(PSTR("Game progress restored!"));
+    return time_elapsed;
 }
