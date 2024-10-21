@@ -16,6 +16,10 @@
 #define TIMER0_H_
 
 #include <stdint.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+bool ssd_on;
 
 /// <summary>
 /// Initialises timer 0 for system clock. An interrupt will be generated
@@ -24,6 +28,8 @@
 /// function should only be called once.
 /// </summary>
 void init_timer0(void);
+void display_digit(uint8_t number, uint8_t digit);
+
 
 /// <summary>
 /// Gets the current time (milliseconds since the timer was initialised).

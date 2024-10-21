@@ -8,7 +8,7 @@ static volatile uint32_t clock_ticks_ms;
 int digit;
 uint8_t value;
 uint32_t time = 0;
-uint8_t seven_seg[10] = { 63, 6, 91, 79, 102, 109, 125, 7, 127, 111 };
+uint8_t seven_seg[11] = { 63, 6, 91, 79, 102, 109, 125, 7, 127, 111, 0 };
 
 #define DIGIT_PIN PD3
 
@@ -65,7 +65,7 @@ uint32_t get_current_time(void)
 ISR(TIMER0_COMPA_vect)
 {
     clock_ticks_ms++;
-    if (clock_ticks_ms >= time + 5) {
+    if (clock_ticks_ms >= time + 5 && ssd_on) {
         seven_seg_update();
         time = clock_ticks_ms;
     }

@@ -88,6 +88,9 @@ volatile uint8_t x_or_y = 0;
 volatile bool adc_ready = false;
 int main(void)
 {
+	ssd_on = false;
+	display_digit(11, 0);
+
 	// Setup hardware and callbacks. This will turn on interrupts.
 	initialise_hardware();
 	// Show the start screen. Returns when the player starts the game.
@@ -161,6 +164,8 @@ void start_screen(void)
 	// Wait until a button is pushed, or 's'/'S' is entered.
 	while (1)
 	{
+		ssd_on = false;
+		display_digit(11, 0);
 		// Check for button presses. If any button is pressed, exit
 		// the start screen by breaking out of this infinite loop.
 		if (button_pushed() != NO_BUTTON_PUSHED)
@@ -205,6 +210,7 @@ void start_screen(void)
 		// the start screen animation on the LED matrix here.
 		update_start_screen();
 	}
+	ssd_on = true;
 }
 
 void new_game(void)
@@ -492,10 +498,8 @@ void handle_game_over(void)
         }
         else if (toupper(serial_input) == 'E')
         {
-            second_pased = 0;
-			initialise_hardware();
-			start_screen();
-            return;
+			asm volatile ("jmp 0x0000");
+			
         } else if (serial_input == 'q' || serial_input == 'Q') {
 				muted = !muted;
 		}
