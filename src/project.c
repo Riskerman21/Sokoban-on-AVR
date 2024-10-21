@@ -42,29 +42,26 @@ void handle_game_over(void);
 
 
 /////////////////////////////// main //////////////////////////////////
+#define JOYSTICK_CENTER_LOW 450
+#define JOYSTICK_CENTER_HIGH 600
 
-// Error margin for allowing a bit of movement deviation
-#define JOYSTICK_CENTER_LOW 450  
-#define JOYSTICK_CENTER_HIGH 600 
-
-#define JOYSTICK_THRESHOLD_NEGATIVE 150  
-#define JOYSTICK_THRESHOLD_POSITIVE 950  
-#define JOYSTICK_THRESHOLD_DIAGONAL 650  
+#define JOYSTICK_THRESHOLD_NEGATIVE 150
+#define JOYSTICK_THRESHOLD_POSITIVE 950
+#define JOYSTICK_THRESHOLD_DIAGONAL 650
 
 void move_player_by_joystick(uint64_t x_value, uint64_t y_value) {
     if ((x_value >= JOYSTICK_CENTER_LOW && x_value <= JOYSTICK_CENTER_HIGH) &&
         (y_value >= JOYSTICK_CENTER_LOW && y_value <= JOYSTICK_CENTER_HIGH)) {
         return;  
     }
-
     if (x_value > JOYSTICK_THRESHOLD_POSITIVE && y_value > JOYSTICK_THRESHOLD_DIAGONAL) {
-        move_player(1, 1);  // Northeast
+        move_player(1, 1);
     } else if (x_value > JOYSTICK_THRESHOLD_POSITIVE && y_value < JOYSTICK_THRESHOLD_NEGATIVE) {
-		move_player(-1, 1);  // Southeast
+		move_player(-1, 1);
     } else if (x_value < JOYSTICK_THRESHOLD_NEGATIVE && y_value > JOYSTICK_THRESHOLD_DIAGONAL) {
-        move_player(1, -1); // Northwest
+        move_player(1, -1); 
     } else if (x_value < JOYSTICK_THRESHOLD_NEGATIVE && y_value < JOYSTICK_THRESHOLD_NEGATIVE) {
-        move_player(-1, -1);  // Southwest
+        move_player(-1, -1);
     }
     else if (x_value > JOYSTICK_THRESHOLD_POSITIVE) {
         move_player(0, 1);
@@ -137,18 +134,13 @@ void initialise_hardware(void)
 void start_screen(void)
 {
 	// Hide terminal cursor and set display mode to default.
-	
 	hide_cursor();
 	normal_display_mode();
-
 	// Clear terminal screen and output the title ASCII art.
 	clear_terminal();
 	display_terminal_title(3, 5);
 	move_terminal_cursor(11, 5);
-	// Change this to your name and student number. Remember to remove the
-	// chevrons - "<" and ">"!
 	printf_P(PSTR("CSSE2010/7201 Project by Abdallah Azazy - 47994832"));
-
 	uint8_t signature = EEPROM_read(EEPROM_SIGNATURE_ADDR);
     if (signature == EEPROM_SIGNATURE) {
 		save_available_flag = true; //yeppie
@@ -169,20 +161,17 @@ void start_screen(void)
 	// Wait until a button is pushed, or 's'/'S' is entered.
 	while (1)
 	{
-
 		// Check for button presses. If any button is pressed, exit
 		// the start screen by breaking out of this infinite loop.
 		if (button_pushed() != NO_BUTTON_PUSHED)
 		{
 			break;
 		}
-
 		// No button was pressed, check if we have terminal inputs.
 		if (serial_input_available())
 		{
 			// Terminal input is available, get the character.
 			int serial_input = fgetc(stdin);
-
 			// If the input is 's'/'S', exit the start screen by
 			// breaking out of this loop.
 			if (serial_input == 's' || serial_input == 'S')
@@ -211,14 +200,12 @@ void start_screen(void)
 			}
 
 		}
-
 		// No button presses and no 's'/'S' typed into the terminal,
 		// we will loop back and do the checks again. We also update
 		// the start screen animation on the LED matrix here.
 		update_start_screen();
 	}
 }
-
 
 void new_game(void)
 {
@@ -242,8 +229,6 @@ void new_game(void)
 	printf_P(PSTR("Time Elapsed: %ld s\n"), second_pased);
 }
 
-
-
 void play_game(void)
 {
 	uint32_t last_flash_time = get_current_time();
@@ -251,11 +236,9 @@ void play_game(void)
 	uint32_t last_second_time = get_current_time();
 	uint32_t last_sound_time = get_current_time();
 	uint32_t last_animation_time = get_current_time();
-
 	DDRC = 0xFF;
 	reset_sound();
 	uint64_t x_value = 512, y_value = 512;
-	// We play the game until it's over.
 	while (!is_game_over())
 	{
 		// We need to check if any buttons have been pushed, this will
@@ -263,44 +246,38 @@ void play_game(void)
 		// 0 has been pushed, we get BUTTON0_PUSHED, and likewise, if
 		// button 1 has been pushed, we get BUTTON1_PUSHED, and so on.
 		ButtonState btn = button_pushed();
-		
-		
-		
 		if (serial_input_available()) {
-				int serial_input = fgetc(stdin);
-				if (serial_input == 'W' || serial_input == 'w') {
-					move_player(1, 0);
-					flash_player();
-				} else if (serial_input == 'D' || serial_input == 'd') {
-					move_player(0, 1);
-					flash_player();
-				} else if (serial_input == 'A' || serial_input == 'a') {
-					move_player(0, -1);
-					flash_player();
-				} else if (serial_input == 'S' || serial_input == 's') {
-					move_player(-1, 0);
-					flash_player();
-				} else if (serial_input == 'P' || serial_input == 'p' ) {
-					paused = !paused;
-					if (paused) {
-						move_terminal_cursor(6, 20); 
-						printf_P(PSTR("Paused - press 'p'/'P' to continue or press 'x'/'X' to exit"));
-					} else {
-						move_terminal_cursor(6, 20); 
-						clear_to_end_of_line();
-					}
-					
-					continue;
-				} else if (serial_input == 'Q' || serial_input == 'q') {
-					muted = !muted;
-				} else     if (serial_input == 'z' || serial_input == 'Z') {
-					undo_move();
-				} else if (serial_input == 'y' || serial_input == 'Y'){
-					redo_move();
+			int serial_input = fgetc(stdin);
+			if (serial_input == 'W' || serial_input == 'w') {
+				move_player(1, 0);
+				flash_player();
+			} else if (serial_input == 'D' || serial_input == 'd') {
+				move_player(0, 1);
+				flash_player();
+			} else if (serial_input == 'A' || serial_input == 'a') {
+				move_player(0, -1);
+				flash_player();
+			} else if (serial_input == 'S' || serial_input == 's') {
+				move_player(-1, 0);
+				flash_player();
+			} else if (serial_input == 'P' || serial_input == 'p' ) {
+				paused = !paused;
+				if (paused) {
+					move_terminal_cursor(6, 20); 
+					printf_P(PSTR("Paused - press 'p'/'P' to continue or press 'x'/'X' to exit"));
+				} else {
+					move_terminal_cursor(6, 20); 
+					clear_to_end_of_line();
 				}
-
+				continue;
+			} else if (serial_input == 'Q' || serial_input == 'q') {
+				muted = !muted;
+			} else     if (serial_input == 'z' || serial_input == 'Z') {
+				undo_move();
+			} else if (serial_input == 'y' || serial_input == 'Y'){
+				redo_move();
 			}
-		
+		}
 		if (set && !second_pased) {
 			second_pased = 0;
 			move_terminal_cursor(5, 20); 
@@ -372,8 +349,6 @@ void play_game(void)
 			move_player(0, -1);
 			flash_player();
 		}
-
-
 		uint32_t current_time = get_current_time();
 		if (current_time >= last_flash_time + 200)
 		{
@@ -382,23 +357,15 @@ void play_game(void)
 			if (adc_ready) {
 				if (x_or_y == 0) {
 					x_value = adc_value;
-					move_terminal_cursor(1,0);
-					clear_to_end_of_line();
-					printf_P(PSTR("X: %ld "), x_value);
 					x_or_y = 1;
 				} else {
 					y_value = adc_value;
-					move_terminal_cursor(0,0);
-					clear_to_end_of_line();
-					printf_P(PSTR("Y: %ld\n"), y_value);
 					move_player_by_joystick(x_value, y_value);
 					x_or_y = 0;
 				}
-
 				adc_ready = false;
 				start_conversion(x_or_y);
 			}
-
 		}
 		current_time = get_current_time();
 		if (current_time >= last_tflash_time + 500)
@@ -450,13 +417,10 @@ void play_game(void)
 					halt_animation();
 					continue;
 				}
-
 				last_sound_time = current_time;
 				uint8_t terminal_row = 10 + (MATRIX_NUM_ROWS - 1 - target_row) * 2;
 				uint8_t terminal_col = 5 + target_col * 4;
-
 				move_terminal_cursor(terminal_row, terminal_col);
-
 				if (target_color_state == 0) {
 					ledmatrix_update_pixel(target_row, target_col, COLOUR_BLACK);
 					set_display_attribute(BG_BLACK);
@@ -477,10 +441,6 @@ void play_game(void)
 			last_animation_time = current_time;
 		}
 	}
-	
-
-	
-	// We get here if the game is over.
 }
 
 void handle_game_over(void)
@@ -512,11 +472,7 @@ void handle_game_over(void)
 
 	while (1)
 	{
-		
-
-		
 		current_time = get_current_time();
-
 		if (current_time >= last_sound_time + 100 && !muted)
 		{
 			counter++;
@@ -524,15 +480,11 @@ void handle_game_over(void)
 			play_game_over_sound(counter);
 			last_sound_time = current_time;
 		}
-
-
         int serial_input = -1;
         if (serial_input_available())
         {
             serial_input = fgetc(stdin);
         }
-
-        // Check serial input.
         if (toupper(serial_input) == 'R')
         {
             second_pased = 0;

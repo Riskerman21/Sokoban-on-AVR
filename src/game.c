@@ -240,8 +240,6 @@ static const char* wall_messages[] = {
 
 
 // ========================== GAME LOGIC FUNCTIONS ===========================
-
-
 void update_square(uint8_t row, uint8_t col) {
     uint8_t terminal_row = 10 + (MATRIX_NUM_ROWS - 1 - row) * 2;
     uint8_t terminal_col = 5 + col * 4; 
@@ -406,12 +404,10 @@ void initialise_game(bool next_level)
 			}
 		}
 	}
-
     if (save_available_flag) {
         recovered_time = restore_game_from_eeprom();
         save_available_flag = false;
     }
-	// Draw the game board (map).
 	for (uint8_t row = 0; row < MATRIX_NUM_ROWS; row++)
 	{
 		for (uint8_t col = 0; col < MATRIX_NUM_COLUMNS; col++)
@@ -419,15 +415,11 @@ void initialise_game(bool next_level)
 			paint_square(row, col);
 		}
 	}
-
-	
 }
 bool on_top_of_target_flag = false;
 
 void flash_targets(void) {
-
     targets_visible = !targets_visible;  // Toggle visibility
-
     for (uint8_t row = 0; row < MATRIX_NUM_ROWS; row++) {
         for (uint8_t col = 0; col < MATRIX_NUM_COLUMNS; col++) {
             if (board[row][col] == TARGET && !(row == player_row && col == player_col)) {
@@ -637,7 +629,7 @@ void move_player(int8_t delta_row, int8_t delta_col)
 	// |    message area of the terminal and return a valid indicating a |
 	// |    valid move.                                                  |
 	// +-----------------------------------------------------------------+
-      paint_square(player_row, player_col);
+    paint_square(player_row, player_col);
 
     uint8_t old_row = player_row;
     uint8_t old_col = player_col;
@@ -648,54 +640,45 @@ void move_player(int8_t delta_row, int8_t delta_col)
         uint8_t final_row = (player_row + delta_row + MATRIX_NUM_ROWS) % MATRIX_NUM_ROWS;
         uint8_t final_col = (player_col + delta_col + MATRIX_NUM_COLUMNS) % MATRIX_NUM_COLUMNS;
 
-        // Horizontal first, then vertical
         intermediate_row_horiz_first = player_row;
         intermediate_col_horiz_first = (player_col + delta_col + MATRIX_NUM_COLUMNS) % MATRIX_NUM_COLUMNS;
 
-        // Vertical first, then horizontal
         intermediate_row_vert_first = (player_row + delta_row + MATRIX_NUM_ROWS) % MATRIX_NUM_ROWS;
         intermediate_col_vert_first = player_col;
 
-        // Check horizontal-first path
         bool can_move_horiz_first = (board[intermediate_row_horiz_first][intermediate_col_horiz_first] != WALL && 
                                      board[intermediate_row_horiz_first][intermediate_col_horiz_first] != BOX &&
                                      board[final_row][final_col] != WALL && 
                                      board[final_row][final_col] != BOX);
 
-        // Check vertical-first path
         bool can_move_vert_first = (board[intermediate_row_vert_first][intermediate_col_vert_first] != WALL && 
                                     board[intermediate_row_vert_first][intermediate_col_vert_first] != BOX &&
                                     board[final_row][final_col] != WALL && 
                                     board[final_row][final_col] != BOX);
 
         if (can_move_horiz_first) {
-            // Move horizontally first, then vertically
             player_col = intermediate_col_horiz_first;
             player_row = final_row;
             paint_square(intermediate_row_horiz_first, old_col);
             update_square(old_row, old_col);
             paint_square(final_row, player_col);
 
-            // Save the diagonal move
-            save_move(old_row, old_col, 0, 0, false, true, delta_row, delta_col);  // Diagonal move, no box
+            save_move(old_row, old_col, 0, 0, false, true, delta_row, delta_col); 
             reset_sound();
             play_player_moved_sound_flag = true;
             step_taken += 2;
         } else if (can_move_vert_first) {
-            // Move vertically first, then horizontally
             player_row = intermediate_row_vert_first;
             player_col = final_col;
             paint_square(intermediate_row_vert_first, old_col);
             update_square(old_row, old_col);
             paint_square(final_row, player_col);
 
-            // Save the diagonal move
-            save_move(old_row, old_col, 0, 0, false, true, delta_row, delta_col);  // Diagonal move, no box
+            save_move(old_row, old_col, 0, 0, false, true, delta_row, delta_col);  
             reset_sound();
             play_player_moved_sound_flag = true;
             step_taken += 2;
         } else {
-            // Neither path is valid, treat as an invalid move
             move_terminal_cursor(3, 20);
             clear_to_end_of_line();
             reset_sound();
@@ -834,7 +817,6 @@ bool is_game_over(void)
 	move_terminal_cursor(2, 40); 
 	clear_to_end_of_line();
 	halt_animation();
-
 	clear_game_board();
     return true;
 }

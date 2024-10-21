@@ -10,11 +10,9 @@
 
 void init_timer1(void)
 {
-
     TCCR1A = 0; 
     TCCR1B = (1 << WGM12) | (1 << CS11); 
     DDRD |= (1 << PD2);
-
 }
 void set_sound_frequency(uint16_t frequency) {
     if (frequency == 0) {

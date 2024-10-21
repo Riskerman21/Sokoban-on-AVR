@@ -14,14 +14,12 @@ uint8_t seven_seg[10] = { 63, 6, 91, 79, 102, 109, 125, 7, 127, 111 };
 
 void display_digit(uint8_t number, uint8_t digit) 
 {
-    PORTD &= ~(1 << DIGIT_PIN); // Deactivate both digits
-    PORTC = seven_seg[number];  // Update segmentsf
-
-    // Activate the correct digit
+    PORTD &= ~(1 << DIGIT_PIN);
+    PORTC = seven_seg[number];
     if (digit == 0) {
-        PORTD &= ~(1 << DIGIT_PIN);  // Activate digit 0
+        PORTD &= ~(1 << DIGIT_PIN);
     } else {
-        PORTD |= (1 << DIGIT_PIN);   // Activate digit 1
+        PORTD |= (1 << DIGIT_PIN);
     }
 }
 
@@ -67,8 +65,7 @@ uint32_t get_current_time(void)
 ISR(TIMER0_COMPA_vect)
 {
     clock_ticks_ms++;
-	
-    if (clock_ticks_ms >= time + 5) {  // Update every 5ms for better brightness
+    if (clock_ticks_ms >= time + 5) {
         seven_seg_update();
         time = clock_ticks_ms;
     }
